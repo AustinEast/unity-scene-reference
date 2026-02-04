@@ -218,7 +218,7 @@ public class SceneReferencePropertyDrawer : PropertyDrawer
 
                 position.y += paddedLine;
 
-                if (!buildScene.assetGUID.Empty())
+                if (buildScene.assetGUID.ToString() != string.Empty) // avoids relying on Empty() if it changed
                 {
                     // Draw the Build Settings Info of the selected Scene
                     DrawSceneInfoGUI(position, buildScene, sceneControlID + 1);
@@ -260,37 +260,55 @@ public class SceneReferencePropertyDrawer : PropertyDrawer
         var iconContent = new GUIContent();
         var labelContent = new GUIContent();
 
-        // Missing from build scenes
+        // Choose stable icons (Unity 6.* safe); fallback if missing.
+        // error icon for "not in build", success/checked icon for enabled, info for disabled
+        GUIContent SafeIcon(string name, string fallbackName = null)
+        {
+            var c = EditorGUIUtility.IconContent(name);
+            if (c == null || c.image == null)
+            {
+                if (!string.IsNullOrEmpty(fallbackName))
+                {
+                    c = EditorGUIUtility.IconContent(fallbackName);
+                }
+            }
+            return c ?? new GUIContent(); // ensure non-null
+        }
+
         if (buildScene.buildIndex == -1)
         {
-            iconContent = EditorGUIUtility.IconContent("d_winbtn_mac_close");
+            iconContent = SafeIcon("console.erroricon", "console.erroricon.sml");
             labelContent.text = "NOT In Build";
             labelContent.tooltip = "This scene is NOT in build settings.\nIt will be NOT included in builds.";
         }
-        // In build scenes and enabled
         else if (buildScene.scene.enabled)
         {
-            iconContent = EditorGUIUtility.IconContent("d_winbtn_mac_max");
+            iconContent = SafeIcon("TestPassed", "icons/animationclip on"); // pick a green-ish check if available
             labelContent.text = "BuildIndex: " + buildScene.buildIndex;
             labelContent.tooltip = "This scene is in build settings and ENABLED.\nIt will be included in builds." + readOnlyWarning;
         }
-        // In build scenes and disabled
         else
         {
-            iconContent = EditorGUIUtility.IconContent("d_winbtn_mac_min");
+            iconContent = SafeIcon("console.infoicon", "console.infoicon.sml");
             labelContent.text = "BuildIndex: " + buildScene.buildIndex;
             labelContent.tooltip = "This scene is in build settings and DISABLED.\nIt will be NOT included in builds.";
         }
 
-        // Left status label
         using (new EditorGUI.DisabledScope(readOnly))
         {
             var labelRect = DrawUtils.GetLabelRect(position);
             var iconRect = labelRect;
-            iconRect.width = iconContent.image.width + PAD_SIZE;
-            labelRect.width -= iconRect.width;
-            labelRect.x += iconRect.width;
-            EditorGUI.PrefixLabel(iconRect, sceneControlID, iconContent);
+
+            // Guard against null image in newer Unity versions
+            var iconWidth = iconContent.image != null ? iconContent.image.width + PAD_SIZE : 0f;
+            iconRect.width = iconWidth;
+            labelRect.width -= iconWidth;
+            labelRect.x += iconWidth;
+
+            if (iconWidth > 0f)
+            {
+                EditorGUI.PrefixLabel(iconRect, sceneControlID, iconContent);
+            }
             EditorGUI.PrefixLabel(labelRect, sceneControlID, labelContent);
         }
 
@@ -301,7 +319,6 @@ public class SceneReferencePropertyDrawer : PropertyDrawer
         var tooltipMsg = "";
         using (new EditorGUI.DisabledScope(readOnly))
         {
-            // NOT in build settings
             if (buildScene.buildIndex == -1)
             {
                 buttonRect.width *= 2;
@@ -312,7 +329,6 @@ public class SceneReferencePropertyDrawer : PropertyDrawer
                 buttonRect.width /= 2;
                 buttonRect.x += buttonRect.width;
             }
-            // In build settings
             else
             {
                 var isEnabled = buildScene.scene.enabled;
